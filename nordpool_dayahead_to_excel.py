@@ -163,7 +163,7 @@ def save_to_excel(target_date: date, rows: List[List[float | str | None]]) -> No
         default_sheet = wb.active
         wb.remove(default_sheet)
 
-    sheet_name = target_date.strftime("%Y.%m.%d.")
+    sheet_name = str(target_date.day)
     if sheet_name in wb.sheetnames:
         wb.remove(wb[sheet_name])
 
@@ -286,7 +286,7 @@ def main() -> None:
 
     save_to_excel(target_date, rows)
     print(
-        f"Sikeres mentés: {len(rows)} óra adat -> '{EXCEL_PATH}', munkalap: '{target_date.strftime('%Y.%m.%d.')}'"
+        f"Sikeres mentés: {len(rows)} óra adat -> '{EXCEL_PATH}', munkalap: '{target_date.day}'"
     )
 
 
