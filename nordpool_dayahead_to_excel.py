@@ -17,8 +17,8 @@ from typing import Dict, List
 EXCEL_PATH = r"/workspace/CBC-Spreads/nordpool_prices.xlsx"
 
 API_URL = "https://dataportal-api.nordpoolgroup.com/api/DayAheadPriceIndices"
-# Add your HUPX API base URL here (example: "https://api.hupx.hu/public-api/v1")
-BASE_URL = "https://api.hupx.hu/public-api/v1"
+# HUPX Labs API base URL (used for HU DAM prices)
+BASE_URL = "https://labs.hupx.hu/data/v1"
 INDEX_NAMES = [
     "EE",
     "LT",
@@ -169,9 +169,9 @@ def fetch_dam(date_str: str) -> Dict[int, Dict[str, float | None]]:
     rows = fetch_json(
         "dam_aggregated_trading_data",
         [
-            f"DeliveryDay_gte_{date_str}",
-            f"DeliveryDay_lt_{next_date}",
-            "Region_eq_HU",
+            f"DeliveryDay__gte__{date_str}",
+            f"DeliveryDay__lt__{next_date}",
+            "Region__eq__HU",
         ],
     )
 
