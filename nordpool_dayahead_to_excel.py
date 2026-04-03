@@ -3,7 +3,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime, date
+import json
+import urllib.parse
+import urllib.request
+from datetime import datetime, date, timedelta
 from pathlib import Path
 from typing import Dict, List
 
@@ -14,6 +17,8 @@ from typing import Dict, List
 EXCEL_PATH = r"/workspace/CBC-Spreads/nordpool_prices.xlsx"
 
 API_URL = "https://dataportal-api.nordpoolgroup.com/api/DayAheadPriceIndices"
+# Add your HUPX API base URL here (example: "https://api.hupx.hu/public-api/v1")
+BASE_URL = "https://api.hupx.hu/public-api/v1"
 INDEX_NAMES = [
     "EE",
     "LT",
@@ -36,6 +41,7 @@ INDEX_NAMES = [
     "SE2",
     "SE3",
     "SE4",
+    "HU",
     "BG",
     "TEL",
 ]
@@ -58,6 +64,9 @@ NEIGHBOUR_PAIRS = [
     ("SE1", "SE2"),
     ("SE2", "SE3"),
     ("SE3", "SE4"),
+    ("AT", "HU"),
+    ("HU", "BG"),
+    ("HU", "TEL"),
     ("BG", "TEL"),
 ]
 
@@ -135,12 +144,53 @@ def fetch_prices(target_date: date) -> Dict:
     return response.json()
 
 
-def build_rows(payload: Dict) -> List[List[float | str | None]]:
+def fetch_json(endpoint: str, filters: List[str], limit: int = 200) -> List[Dict]:
+    filter_str = ",".join(filters)
+    url = f"{BASE_URL}/{endpoint}?filter={urllib.parse.quote(filter_str)}&limit={limit}"
+    all_data: List[Dict] = []
+
+    while url:
+        req = urllib.request.Request(url)
+        req.add_header("User-Agent", "HUPX-Fetcher/1.0")
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            body = json.loads(resp.read().decode())
+
+        all_data.extend(body.get("data", []))
+        url = body.get("nextPage")
+
+    return all_data
+
+
+def fetch_dam(date_str: str) -> Dict[int, Dict[str, float | None]]:
+    """Returns {hour: {price, volume}} for DAM HU."""
+    next_date = (datetime.strptime(date_str, "%Y-%m-%d") + timedelta(days=1)).strftime(
+        "%Y-%m-%d"
+    )
+    rows = fetch_json(
+        "dam_aggregated_trading_data",
+        [
+            f"DeliveryDay_gte_{date_str}",
+            f"DeliveryDay_lt_{next_date}",
+            "Region_eq_HU",
+        ],
+    )
+
+    result: Dict[int, Dict[str, float | None]] = {}
+    for r in rows:
+        hour = int(r["ProductH"])
+        result[hour] = {"price": r.get("Price"), "volume": r.get("Volume")}
+
+    return result
+
+
+def build_rows(payload: Dict, hu_dam: Dict[int, Dict[str, float | None]]) -> List[List[float | str | None]]:
     rows: List[List[float | str | None]] = []
     entries = payload.get("multiIndexEntries", [])
 
     for idx, item in enumerate(entries, start=1):
         entry_per_area = item.get("entryPerArea", {})
+        hu_price = hu_dam.get(idx, {}).get("price")
+        entry_per_area["HU"] = hu_price
         row: List[float | str | None] = [idx]
         for area in INDEX_NAMES:
             row.append(entry_per_area.get(area))
@@ -278,7 +328,13 @@ def main() -> None:
         print(f"Hálózati/API hiba történt: {exc}")
         return
 
-    rows = build_rows(payload)
+    hu_dam: Dict[int, Dict[str, float | None]] = {}
+    try:
+        hu_dam = fetch_dam(target_date.isoformat())
+    except Exception as exc:
+        print(f"HU DAM adatlekérés sikertelen, HU oszlop üres marad: {exc}")
+
+    rows = build_rows(payload, hu_dam)
 
     if not rows:
         print(f"Nincs adat a következő dátumra: {target_date.isoformat()}")
