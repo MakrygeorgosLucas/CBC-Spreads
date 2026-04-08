@@ -19,9 +19,10 @@ EXCEL_PATH = r"C:\Users\Lucas\Desktop\NordPoolDamSpreads.xlsx"
 API_URL = "https://dataportal-api.nordpoolgroup.com/api/DayAheadPriceIndices"
 # HUPX Labs API base URL (used for HU DAM prices)
 BASE_URL = "https://labs.hupx.hu/data/v1"
+
+# Stripped down strictly to the requested countries (DE changed to GER)
 INDEX_NAMES = [
     "EE",
-    "LT",
     "LV",
     "AT",
     "BE",
@@ -32,44 +33,32 @@ INDEX_NAMES = [
     "DK1",
     "DK2",
     "FI",
-    "NO1",
-    "NO2",
-    "NO3",
-    "NO4",
-    "NO5",
-    "SE1",
-    "SE2",
-    "SE3",
-    "SE4",
     "HU",
     "BG",
     "TEL",
 ]
 
-# Pairs used for cross-border spread table (left_area -> right_area).
+# Pairs imported from country_pairs.json with corrected designations (GER, TEL, DK1)
 # Spread = right_area_price - left_area_price
 NEIGHBOUR_PAIRS = [
-    ("EE", "LT"),
-    ("LT", "LV"),
-    ("AT", "BE"),
-    ("BE", "FR"),
-    ("FR", "GER"),
-    ("GER", "NL"),
-    ("NL", "PL"),
-    ("DK1", "DK2"),
-    ("NO1", "NO2"),
-    ("NO2", "NO3"),
-    ("NO3", "NO4"),
-    ("NO4", "NO5"),
-    ("SE1", "SE2"),
-    ("SE2", "SE3"),
-    ("SE3", "SE4"),
+    ("AT", "GER"),
     ("AT", "HU"),
-    ("HU", "BG"),
-    ("HU", "TEL"),
+    ("BE", "FR"),
+    ("BE", "NL"),
     ("BG", "TEL"),
+    ("DK1", "DK2"),
+    ("DK1", "GER"),
+    ("DK2", "GER"),
+    ("GER", "FR"),
+    ("GER", "NL"),
+    ("DK1", "NL"),
+    ("EE", "LV"),
+    ("FI", "EE"),
+    ("HU", "TEL"),
+    ("TEL", "HU"),
+    ("PL", "GER"),
+    ("PL", "NL")
 ]
-
 
 def show_menu() -> str:
     inner_width = 42
@@ -271,16 +260,19 @@ def save_to_excel(target_date: date, rows: List[List[float | str | None]]) -> No
         excel_row = spread_start_row + hour_idx
         ws.cell(row=excel_row, column=1, value=hour_idx)
         for col_idx, (left, right) in enumerate(NEIGHBOUR_PAIRS, start=2):
-            left_col = INDEX_NAMES.index(left) + 2
-            right_col = INDEX_NAMES.index(right) + 2
-            ws.cell(
-                row=excel_row,
-                column=col_idx,
-                value=(
-                    f"={get_column_letter(right_col)}{hour_idx + 1}"
-                    f"-{get_column_letter(left_col)}{hour_idx + 1}"
-                ),
-            )
+            try:
+                left_col = INDEX_NAMES.index(left) + 2
+                right_col = INDEX_NAMES.index(right) + 2
+                ws.cell(
+                    row=excel_row,
+                    column=col_idx,
+                    value=(
+                        f"={get_column_letter(right_col)}{hour_idx + 1}"
+                        f"-{get_column_letter(left_col)}{hour_idx + 1}"
+                    ),
+                )
+            except ValueError:
+                pass
 
     spread_avg_row = spread_start_row + len(rows) + 1
     ws.cell(row=spread_avg_row, column=1, value="AVG")
